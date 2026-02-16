@@ -5,13 +5,13 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 const playerImg = new Image();
-playerImg.src = "assets/player.png";
+playerImg.src = "./player.png";
 
 const heartImg = new Image();
-heartImg.src = "assets/heart.png";
+heartImg.src = "./heart.png";
 
 const xImg = new Image();
-xImg.src = "assets/x.png";
+xImg.src = "./x.png";
 
 const GOOD_COUNT = 19;
 const BAD_COUNT = 16;
@@ -21,7 +21,7 @@ let badImages = [];
 
 for (let i = 1; i <= GOOD_COUNT; i++) {
     let img = new Image();
-    img.src = `assets/good/good${i}.png`;
+    img.src = `./good/good${i}.png`;
     goodImages.push(img);
 }
 
