@@ -1,7 +1,6 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Dynamiczne dopasowanie rozmiaru
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -9,70 +8,88 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
+// --- SYSTEM ŁADOWANIA GRAFIK ---
+let imagesLoaded = 0;
+const totalImages = 1 + 1 + 1 + 19 + 16; // player + heart + x + good + bad
+
+function imageLoaded() {
+    imagesLoaded++;
+    if (imagesLoaded >= totalImages) {
+        startGame(); // Ruszamy dopiero jak wszystko się załaduje
+    }
+}
+
 const playerImg = new Image();
+playerImg.onload = imageLoaded;
 playerImg.src = "player.png";
 
 const heartImg = new Image();
+heartImg.onload = imageLoaded;
 heartImg.src = "heart.png";
 
 const xImg = new Image();
+xImg.onload = imageLoaded;
 xImg.src = "x.png";
 
 const GOOD_COUNT = 19;
 const BAD_COUNT = 16;
-
 let goodImages = [];
 let badImages = [];
 
-// POPRAWKA: Usunięto ścieżki folderów, bo pliki są w katalogu głównym
 for (let i = 1; i <= GOOD_COUNT; i++) {
     let img = new Image();
-    img.src = `good${i}.png`; 
+    img.onload = imageLoaded;
+    img.src = `good${i}.png`;
     goodImages.push(img);
 }
 
 for (let i = 1; i <= BAD_COUNT; i++) {
     let img = new Image();
+    img.onload = imageLoaded;
     img.src = `bad${i}.png`;
     badImages.push(img);
 }
 
+// --- LOGIKA GRY ---
 let player = {
-    width: 100,
-    height: 100,
-    x: canvas.width / 2 - 50,
-    y: canvas.height - 120
+    width: 80,
+    height: 80,
+    x: canvas.width / 2 - 40,
+    y: canvas.height - 100
 };
 
 let items = [];
 let effects = [];
+let spawnTimer = 0;
 
 function spawnItem() {
-    let isGood = Math.random() < 0.55; // 55% szans na dobry przedmiot
+    let isGood = Math.random() < 0.6; // 60% szans na dobre
     let imgArray = isGood ? goodImages : badImages;
-    let img = imgArray[Math.floor(Math.random() * imgArray.length)];
+    let randomImg = imgArray[Math.floor(Math.random() * imgArray.length)];
 
     items.push({
-        x: Math.random() * (canvas.width - 60),
+        x: Math.random() * (canvas.width - 50),
         y: -60,
-        width: 60,
-        height: 60,
-        speed: 3 + Math.random() * 4,
+        width: 50,
+        height: 50,
+        speed: 3 + Math.random() * 3,
         good: isGood,
-        image: img
+        image: randomImg
     });
 }
 
-function drawPlayer() {
-    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
-}
+function update() {
+    // Spawnowanie przedmiotów co ok. 40 klatek
+    spawnTimer++;
+    if (spawnTimer > 40) {
+        spawnItem();
+        spawnTimer = 0;
+    }
 
-function updateItems() {
+    // Aktualizacja przedmiotów
     for (let i = items.length - 1; i >= 0; i--) {
         let item = items[i];
         item.y += item.speed;
-
-        ctx.drawImage(item.image, item.x, item.y, item.width, item.height);
 
         // Kolizja
         if (
@@ -82,50 +99,73 @@ function updateItems() {
             item.y + item.height > player.y
         ) {
             effects.push({
-                x: player.x + player.width / 2 - 25,
-                y: player.y - 60,
+                x: player.x + player.width / 2 - 20,
+                y: player.y - 40,
                 img: item.good ? heartImg : xImg,
-                time: 30
+                time: 25
             });
             items.splice(i, 1);
-        } else if (item.y > canvas.height) {
+            continue;
+        }
+
+        if (item.y > canvas.height) {
             items.splice(i, 1);
         }
     }
-}
 
-function updateEffects() {
+    // Aktualizacja efektów
     for (let i = effects.length - 1; i >= 0; i--) {
-        let e = effects[i];
-        ctx.drawImage(e.img, e.x, e.y, 50, 50);
-        e.y -= 1; // Efekt lekko unosi się do góry
-        e.time--;
-        if (e.time <= 0) effects.splice(i, 1);
+        effects[i].time--;
+        effects[i].y -= 1; // Unoszenie się
+        if (effects[i].time <= 0) effects.splice(i, 1);
     }
 }
 
-function gameLoop() {
+function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    updateItems();
-    drawPlayer();
-    updateEffects();
+
+    // Rysuj przedmioty
+    items.forEach(item => {
+        ctx.drawImage(item.image, item.x, item.y, item.width, item.height);
+    });
+
+    // Rysuj gracza
+    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+
+    // Rysuj efekty
+    effects.forEach(e => {
+        ctx.drawImage(e.img, e.x, e.y, 40, 40);
+    });
+}
+
+function gameLoop() {
+    update();
+    draw();
     requestAnimationFrame(gameLoop);
 }
 
-setInterval(spawnItem, 600);
-
-// Obsługa ruchu z blokadą krawędzi ekranu
-function movePlayer(clientX) {
-    let newX = clientX - player.width / 2;
-    if (newX < 0) newX = 0;
-    if (newX > canvas.width - player.width) newX = canvas.width - player.width;
-    player.x = newX;
+function startGame() {
+    // Usuwamy ewentualny tekst "Ładowanie" i startujemy
+    gameLoop();
 }
 
-canvas.addEventListener("mousemove", (e) => movePlayer(e.clientX));
+// Obsługa sterowania
+function handleMove(clientX) {
+    let targetX = clientX - player.width / 2;
+    // Ograniczenie żeby nie wychodził poza ekran
+    if (targetX < 0) targetX = 0;
+    if (targetX > canvas.width - player.width) targetX = canvas.width - player.width;
+    player.x = targetX;
+}
+
+canvas.addEventListener("mousemove", (e) => handleMove(e.clientX));
 canvas.addEventListener("touchmove", (e) => {
     e.preventDefault();
-    movePlayer(e.touches[0].clientX);
+    handleMove(e.touches[0].clientX);
 }, { passive: false });
 
-gameLoop();
+// Wyświetl info o ładowaniu na starcie
+ctx.fillStyle = "white";
+ctx.font = "20px Arial";
+ctx.textAlign = "center";
+ctx.fillText("Ładowanie grafiki...", canvas.width / 2, canvas.height / 2);
