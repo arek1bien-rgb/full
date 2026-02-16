@@ -1,17 +1,22 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// Dynamiczne dopasowanie rozmiaru
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
 
 const playerImg = new Image();
-playerImg.src = "./player.png";
+playerImg.src = "player.png";
 
 const heartImg = new Image();
-heartImg.src = "./heart.png";
+heartImg.src = "heart.png";
 
 const xImg = new Image();
-xImg.src = "./x.png";
+xImg.src = "x.png";
 
 const GOOD_COUNT = 19;
 const BAD_COUNT = 16;
@@ -19,15 +24,16 @@ const BAD_COUNT = 16;
 let goodImages = [];
 let badImages = [];
 
+// POPRAWKA: Usunięto ścieżki folderów, bo pliki są w katalogu głównym
 for (let i = 1; i <= GOOD_COUNT; i++) {
     let img = new Image();
-    img.src = `./good/good${i}.png`;
+    img.src = `good${i}.png`; 
     goodImages.push(img);
 }
 
 for (let i = 1; i <= BAD_COUNT; i++) {
     let img = new Image();
-    img.src = `assets/bad/bad${i}.png`;
+    img.src = `bad${i}.png`;
     badImages.push(img);
 }
 
@@ -42,10 +48,9 @@ let items = [];
 let effects = [];
 
 function spawnItem() {
-    let isGood = Math.random() < 0.55; // trochę więcej dobrych
-    let img = isGood
-        ? goodImages[Math.floor(Math.random() * goodImages.length)]
-        : badImages[Math.floor(Math.random() * badImages.length)];
+    let isGood = Math.random() < 0.55; // 55% szans na dobry przedmiot
+    let imgArray = isGood ? goodImages : badImages;
+    let img = imgArray[Math.floor(Math.random() * imgArray.length)];
 
     items.push({
         x: Math.random() * (canvas.width - 60),
@@ -69,33 +74,21 @@ function updateItems() {
 
         ctx.drawImage(item.image, item.x, item.y, item.width, item.height);
 
-        // kolizja
+        // Kolizja
         if (
             item.x < player.x + player.width &&
             item.x + item.width > player.x &&
             item.y < player.y + player.height &&
             item.y + item.height > player.y
         ) {
-            if (item.good) {
-                effects.push({
-                    x: player.x + player.width / 2 - 25,
-                    y: player.y - 50,
-                    img: heartImg,
-                    time: 30
-                });
-            } else {
-                effects.push({
-                    x: player.x + player.width / 2 - 25,
-                    y: player.y - 50,
-                    img: xImg,
-                    time: 30
-                });
-            }
-
+            effects.push({
+                x: player.x + player.width / 2 - 25,
+                y: player.y - 60,
+                img: item.good ? heartImg : xImg,
+                time: 30
+            });
             items.splice(i, 1);
-        }
-
-        if (item.y > canvas.height) {
+        } else if (item.y > canvas.height) {
             items.splice(i, 1);
         }
     }
@@ -105,6 +98,7 @@ function updateEffects() {
     for (let i = effects.length - 1; i >= 0; i--) {
         let e = effects[i];
         ctx.drawImage(e.img, e.x, e.y, 50, 50);
+        e.y -= 1; // Efekt lekko unosi się do góry
         e.time--;
         if (e.time <= 0) effects.splice(i, 1);
     }
@@ -112,22 +106,26 @@ function updateEffects() {
 
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    drawPlayer();
     updateItems();
+    drawPlayer();
     updateEffects();
-
     requestAnimationFrame(gameLoop);
 }
 
 setInterval(spawnItem, 600);
 
-canvas.addEventListener("mousemove", (e) => {
-    player.x = e.clientX - player.width / 2;
-});
+// Obsługa ruchu z blokadą krawędzi ekranu
+function movePlayer(clientX) {
+    let newX = clientX - player.width / 2;
+    if (newX < 0) newX = 0;
+    if (newX > canvas.width - player.width) newX = canvas.width - player.width;
+    player.x = newX;
+}
 
+canvas.addEventListener("mousemove", (e) => movePlayer(e.clientX));
 canvas.addEventListener("touchmove", (e) => {
-    player.x = e.touches[0].clientX - player.width / 2;
-});
+    e.preventDefault();
+    movePlayer(e.touches[0].clientX);
+}, { passive: false });
 
 gameLoop();
